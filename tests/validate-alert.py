@@ -5,6 +5,7 @@ Requer Docker e PyYAML. Não acessa cluster, APM ou destinatários de notificaç
 """
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -63,6 +64,9 @@ with tempfile.TemporaryDirectory(prefix="fiap-alert-") as directory:
     }))
     subprocess.run([
         "docker", "run", "--rm", "--network", "none", "--read-only",
+        # TemporaryDirectory usa 0700. No Linux, o bind mount preserva o dono;
+        # o usuario nobody da imagem nao consegue ler esse diretorio privado.
+        "--user", f"{os.getuid()}:{os.getgid()}",
         "--tmpfs", "/tmp", "--entrypoint", "/bin/promtool",
         "-v", f"{tmp}:/config:ro", "prom/prometheus:v3.16.0",
         "test", "rules", "/config/test.yml",
