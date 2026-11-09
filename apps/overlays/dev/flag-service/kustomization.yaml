@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: togglemaster
+
+resources:
+- ../../../base/flag-service
+
+# `labels` com includeSelectors=false: o rótulo é aplicado nos objetos sem
+# entrar no selector do Deployment, que é imutável depois de criado.
+labels:
+- pairs:
+    app.kubernetes.io/instance: dev
+
+# ---------------------------------------------------------------------------
+# ESTE BLOCO É ESCRITO PELO PIPELINE DE CI.
+# O job `update-gitops` roda:
+#   kustomize edit set image flag-service=<ecr>/flag-service:v1.0.0-<sha>
+# e faz commit. O Argo CD vê o commit e sincroniza o cluster.
+# Não edite manualmente — o próximo build sobrescreve.
+# ---------------------------------------------------------------------------
+images:
+- name: flag-service
+  newName: 456788081240.dkr.ecr.us-east-1.amazonaws.com/flag-service
+  newTag: SET_BY_CI

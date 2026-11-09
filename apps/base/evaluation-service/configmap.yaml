@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: evaluation-service-config
+data:
+  PORT: '8080'
+  AWS_REGION: us-east-1
+  FLAG_SERVICE_URL: http://flag-service.togglemaster.svc.cluster.local
+  TARGETING_SERVICE_URL: http://targeting-service.togglemaster.svc.cluster.local
+  OTEL_SERVICE_NAME: evaluation-service
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-gateway.observability.svc.cluster.local:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+  OTEL_TRACES_SAMPLER: parentbased_always_on
+  OTEL_METRIC_EXPORT_INTERVAL: '10000'
+  OTEL_BSP_SCHEDULE_DELAY: '1000'
+  OTEL_BLRP_SCHEDULE_DELAY: '1000'

@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: incident-responder
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: incident-responder
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: incident-responder
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: incident-responder
+    spec:
+      serviceAccountName: incident-responder
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: responder
+          image: incident-responder
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: RESPONDER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: incident-integrations
+                  key: RESPONDER_TOKEN
+            - name: STATE_DB
+              value: /data/actions.db
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 25m, memory: 64Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: state
+              mountPath: /data
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: incident-responder-state

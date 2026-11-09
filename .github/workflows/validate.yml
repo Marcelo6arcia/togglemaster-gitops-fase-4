@@ -1,0 +1,68 @@
+name: Validate GitOps
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: azure/setup-helm@v5.0.1
+        with:
+          version: v4.2.0
+      - uses: azure/setup-kubectl@v5.2.0
+        with:
+          version: v1.34.1
+      - name: Instalar dependência dos testes
+        run: python -m pip install PyYAML==6.0.3
+      - name: Compilar Kustomize sem acessar cluster
+        run: |
+          set -euo pipefail
+          for path in apps/overlays/dev/* platform observability/foundation observability/responder; do
+            kubectl kustomize "$path" > /dev/null
+          done
+      - name: Renderizar versões e valores declarados nas Applications
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import yaml
+
+          count = 0
+          for path in sorted(Path("argocd/applications").glob("*.yaml")):
+              app = yaml.safe_load(path.read_text())
+              for source in app.get("spec", {}).get("sources", []):
+                  if "chart" not in source:
+                      continue
+                  helm = source["helm"]
+                  args = ["helm", "template", helm["releaseName"], source["chart"],
+                          "--repo", source["repoURL"], "--version", source["targetRevision"],
+                          "--namespace", app["spec"]["destination"]["namespace"]]
+                  for value_file in helm["valueFiles"]:
+                      assert value_file.startswith("$values/"), value_file
+                      args.extend(["--values", value_file.removeprefix("$values/")])
+                  result = subprocess.run(args, text=True, capture_output=True)
+                  if result.returncode:
+                      raise RuntimeError(result.stderr)
+                  assert list(yaml.safe_load_all(result.stdout)), path
+                  count += 1
+                  print(f"PASS: {helm['releaseName']} chart {source['targetRevision']}")
+          assert count == 5, f"Esperados 5 charts; encontrados {count}"
+          PY
+      - name: Conferir dashboard e quatro cenários do alerta
+        run: python tests/validate-alert.py

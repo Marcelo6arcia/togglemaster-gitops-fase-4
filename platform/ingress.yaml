@@ -1,0 +1,69 @@
+# =============================================================================
+# Ingress único do ToggleMaster — roteia os 5 microsserviços por prefixo.
+# =============================================================================
+# Convenção de rota:  /<prefixo-do-servico>/<rota-real-do-servico>
+#
+#   /auth/health              -> auth-service        GET  /health
+#   /auth/validate            -> auth-service        GET  /validate
+#   /auth/admin/keys          -> auth-service        POST /admin/keys
+#   /flag/health              -> flag-service        GET  /health
+#   /flag/flags               -> flag-service        GET|POST /flags
+#   /flag/flags/<nome>        -> flag-service        GET|PUT|DELETE /flags/<nome>
+#   /targeting/rules          -> targeting-service   POST /rules
+#   /targeting/rules/<flag>   -> targeting-service   GET|PUT|DELETE /rules/<flag>
+#   /evaluation/evaluate      -> evaluation-service  GET  /evaluate
+#   /analytics/health         -> analytics-service   GET  /health
+#
+# O prefixo é removido pelo rewrite ($2 é o segundo grupo de captura), então o
+# serviço recebe exatamente a rota que ele mesmo declara. Os cinco serviços
+# expõem /health — sem o prefixo não haveria como distingui-los.
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: togglemaster
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-body-size: 1m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /auth(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 80
+          - path: /flag(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: flag-service
+                port:
+                  number: 80
+          - path: /targeting(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: targeting-service
+                port:
+                  number: 80
+          - path: /evaluation(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: evaluation-service
+                port:
+                  number: 80
+          - path: /analytics(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: analytics-service
+                port:
+                  number: 80

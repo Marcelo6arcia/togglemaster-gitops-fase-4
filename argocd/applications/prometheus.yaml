@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '2'
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: observability
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+  sources:
+  - repoURL: https://prometheus-community.github.io/helm-charts
+    chart: prometheus
+    targetRevision: 29.46.0
+    helm:
+      releaseName: prometheus
+      valueFiles:
+      - $values/observability/values/prometheus.yaml
+  - repoURL: https://github.com/Marcelo6arcia/togglemaster-gitops-fase-4.git
+    targetRevision: main
+    ref: values

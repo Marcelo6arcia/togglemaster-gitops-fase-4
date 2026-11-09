@@ -1,0 +1,136 @@
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: 0.163.2
+command:
+  name: otelcol-contrib
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+nodeSelector:
+  kubernetes.io/os: linux
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+    - ALL
+  seccompProfile:
+    type: RuntimeDefault
+  runAsUser: 0
+ports:
+  jaeger-compact:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  zipkin:
+    enabled: false
+  otlp:
+    enabled: false
+  otlp-http:
+    enabled: false
+fullnameOverride: otel-agent
+mode: daemonset
+tolerations:
+- operator: Exists
+presets:
+  logsCollection:
+    enabled: true
+    includeCollectorLogs: true
+    storeCheckpoints: true
+  kubeletMetrics:
+    enabled: true
+  kubernetesAttributes:
+    enabled: true
+service:
+  enabled: false
+alternateConfig:
+  extensions:
+    health_check:
+      endpoint: ${env:MY_POD_IP}:13133
+  receivers:
+    prometheus:
+      config:
+        scrape_configs:
+        - job_name: otel-self
+          scrape_interval: 15s
+          static_configs:
+          - targets:
+            - ${env:MY_POD_IP}:8888
+    file_log:
+      start_at: beginning
+      operators:
+      - id: container-parser
+        type: container
+      - type: json_parser
+        if: body matches `^\s*\{`
+        on_error: send
+        parse_to: body
+    kubeletstats:
+      auth_type: serviceAccount
+      collection_interval: 15s
+      endpoint: ${env:K8S_NODE_IP}:10250
+      insecure_skip_verify: true
+      metric_groups:
+      - node
+      - pod
+      - container
+  processors:
+    memory_limiter:
+      check_interval: 1s
+      limit_percentage: 75
+      spike_limit_percentage: 15
+    batch:
+      timeout: 2s
+      send_batch_size: 256
+      send_batch_max_size: 512
+    filter/otlp_mirrors:
+      error_mode: ignore
+      logs:
+        log_record:
+        - body["otel_exported"] == true
+  exporters:
+    otlphttp/gateway:
+      endpoint: http://otel-gateway.observability.svc.cluster.local:4318
+      sending_queue:
+        enabled: true
+        queue_size: 2048
+      retry_on_failure:
+        enabled: true
+        max_elapsed_time: 300s
+  service:
+    extensions:
+    - health_check
+    telemetry:
+      logs:
+        level: info
+        encoding: json
+      metrics:
+        readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: ${env:MY_POD_IP}
+                port: 8888
+    pipelines:
+      logs:
+        receivers: []
+        processors:
+        - memory_limiter
+        - filter/otlp_mirrors
+        - batch
+        exporters:
+        - otlphttp/gateway
+      metrics:
+        receivers:
+        - prometheus
+        processors:
+        - memory_limiter
+        - batch
+        exporters:
+        - otlphttp/gateway

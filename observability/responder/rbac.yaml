@@ -1,0 +1,24 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: incident-responder-auth
+  namespace: togglemaster
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [auth-service]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: incident-responder-auth
+  namespace: togglemaster
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: incident-responder-auth
+subjects:
+  - kind: ServiceAccount
+    name: incident-responder
+    namespace: observability

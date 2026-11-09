@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flag-service-config
+data:
+  PORT: '8080'
+  AUTH_SERVICE_URL: http://auth-service.togglemaster.svc.cluster.local
+  OTEL_SERVICE_NAME: flag-service
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-gateway.observability.svc.cluster.local:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+  OTEL_TRACES_SAMPLER: parentbased_always_on
+  OTEL_METRIC_EXPORT_INTERVAL: '10000'
+  OTEL_BSP_SCHEDULE_DELAY: '1000'
+  OTEL_BLRP_SCHEDULE_DELAY: '1000'

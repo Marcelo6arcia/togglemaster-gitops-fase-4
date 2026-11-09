@@ -1,0 +1,171 @@
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: 0.163.2
+command:
+  name: otelcol-contrib
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+nodeSelector:
+  kubernetes.io/os: linux
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+    - ALL
+  seccompProfile:
+    type: RuntimeDefault
+ports:
+  jaeger-compact:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  zipkin:
+    enabled: false
+  otlp:
+    enabled: true
+    hostPort: null
+  otlp-http:
+    enabled: true
+    hostPort: null
+  prometheus-exporter:
+    enabled: true
+    containerPort: 8889
+    servicePort: 8889
+    protocol: TCP
+fullnameOverride: otel-gateway
+mode: deployment
+replicaCount: 1
+presets:
+  clusterMetrics:
+    enabled: true
+  kubernetesAttributes:
+    enabled: true
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+extraEnvs:
+- name: NEW_RELIC_LICENSE_KEY
+  valueFrom:
+    secretKeyRef:
+      name: apm-credentials
+      key: NEW_RELIC_LICENSE_KEY
+alternateConfig:
+  extensions:
+    health_check:
+      endpoint: ${env:MY_POD_IP}:13133
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+    prometheus:
+      config:
+        scrape_configs:
+        - job_name: otel-self
+          scrape_interval: 15s
+          static_configs:
+          - targets:
+            - ${env:MY_POD_IP}:8888
+  processors:
+    memory_limiter:
+      check_interval: 1s
+      limit_percentage: 75
+      spike_limit_percentage: 15
+    batch:
+      timeout: 2s
+      send_batch_size: 256
+      send_batch_max_size: 512
+    resource/environment:
+      attributes:
+      - key: deployment.environment.name
+        value: dev
+        action: upsert
+    transform/log_service:
+      error_mode: ignore
+      log_statements:
+      - context: resource
+        statements:
+        - set(attributes["service.name"], attributes["k8s.container.name"]) where
+          attributes["service.name"] == nil and attributes["k8s.container.name"] !=
+          nil
+  exporters:
+    prometheus:
+      endpoint: 0.0.0.0:8889
+      resource_to_telemetry_conversion:
+        enabled: true
+      metric_expiration: 5m
+      enable_open_metrics: true
+    otlphttp/loki:
+      endpoint: http://loki.observability.svc.cluster.local:3100/otlp
+      sending_queue:
+        enabled: true
+        queue_size: 2048
+      retry_on_failure:
+        enabled: true
+        max_elapsed_time: 300s
+    otlphttp/newrelic:
+      endpoint: https://otlp.nr-data.net:4318
+      headers:
+        api-key: ${env:NEW_RELIC_LICENSE_KEY}
+      compression: gzip
+      sending_queue:
+        enabled: true
+        queue_size: 2048
+      retry_on_failure:
+        enabled: true
+        max_elapsed_time: 300s
+  service:
+    extensions:
+    - health_check
+    telemetry:
+      logs:
+        level: info
+        encoding: json
+      metrics:
+        readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: ${env:MY_POD_IP}
+                port: 8888
+    pipelines:
+      logs:
+        receivers:
+        - otlp
+        processors:
+        - memory_limiter
+        - resource/environment
+        - transform/log_service
+        - batch
+        exporters:
+        - otlphttp/loki
+      metrics:
+        receivers:
+        - otlp
+        - prometheus
+        processors:
+        - memory_limiter
+        - resource/environment
+        - batch
+        exporters:
+        - prometheus
+      traces:
+        receivers:
+        - otlp
+        processors:
+        - memory_limiter
+        - resource/environment
+        - batch
+        exporters:
+        - otlphttp/newrelic

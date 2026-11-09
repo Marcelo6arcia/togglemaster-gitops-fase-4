@@ -1,0 +1,57 @@
+server:
+  fullnameOverride: prometheus
+  retention: 7d
+  global:
+    scrape_interval: 15s
+    evaluation_interval: 15s
+  persistentVolume:
+    enabled: true
+    storageClass: gp3-observability
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+alertmanager:
+  enabled: false
+kube-state-metrics:
+  enabled: false
+prometheus-node-exporter:
+  enabled: false
+prometheus-pushgateway:
+  enabled: false
+scrapeConfigs:
+  prometheus:
+    enabled: false
+  kubernetes-api-servers:
+    enabled: false
+  kubernetes-nodes:
+    enabled: false
+  kubernetes-nodes-cadvisor:
+    enabled: false
+  kubernetes-service-endpoints:
+    enabled: false
+  kubernetes-service-endpoints-slow:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  kubernetes-services:
+    enabled: false
+  kubernetes-pods:
+    enabled: false
+  kubernetes-pods-slow:
+    enabled: false
+  otel-gateway:
+    enabled: true
+    honor_labels: true
+    static_configs:
+    - targets:
+      - otel-gateway.observability.svc.cluster.local:8889
+rbac:
+  create: false
+serviceAccounts:
+  server:
+    automountServiceAccountToken: false

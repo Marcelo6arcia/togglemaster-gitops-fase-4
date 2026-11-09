@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '2'
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: observability
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+  sources:
+  - repoURL: https://grafana.github.io/helm-charts
+    chart: loki
+    targetRevision: 7.5.0
+    helm:
+      releaseName: loki
+      valueFiles:
+      - $values/observability/values/loki.yaml
+  - repoURL: https://github.com/Marcelo6arcia/togglemaster-gitops-fase-4.git
+    targetRevision: main
+    ref: values

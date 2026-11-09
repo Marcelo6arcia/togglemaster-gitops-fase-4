@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: evaluation-service
+  labels:
+    app.kubernetes.io/name: evaluation-service
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: evaluation-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

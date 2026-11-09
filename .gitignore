@@ -1,0 +1,25 @@
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Saída de `kustomize build` usada em validação local
+rendered/
+*.rendered.yaml
+
+# Configuração e saídas locais; valores reais devem permanecer fora do Git
+.env
+.env.*
+!.env.example
+.runs/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+backend.hcl
+backend.hcl.*
+!backend.hcl.example

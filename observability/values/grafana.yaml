@@ -1,0 +1,202 @@
+fullnameOverride: grafana
+replicas: 1
+deploymentStrategy:
+  type: Recreate
+service:
+  type: ClusterIP
+admin:
+  existingSecret: grafana-admin
+envFromSecret: incident-integrations
+persistence:
+  enabled: true
+  storageClassName: gp3-observability
+  size: 2Gi
+initChownData:
+  enabled: false
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+grafana.ini:
+  analytics:
+    reporting_enabled: false
+    check_for_updates: false
+  users:
+    allow_sign_up: false
+  auth.anonymous:
+    enabled: false
+  unified_alerting:
+    enabled: true
+  server:
+    root_url: http://localhost:3000
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      uid: prometheus
+      access: proxy
+      url: http://prometheus.observability.svc.cluster.local
+      isDefault: true
+      editable: false
+      jsonData:
+        timeInterval: 15s
+    - name: Loki
+      type: loki
+      uid: loki
+      access: proxy
+      url: http://loki.observability.svc.cluster.local:3100
+      editable: false
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+    - name: togglemaster
+      orgId: 1
+      folder: ToggleMaster
+      type: file
+      disableDeletion: true
+      allowUiUpdates: false
+      options:
+        path: /var/lib/grafana/dashboards/togglemaster
+dashboardsConfigMaps:
+  togglemaster: togglemaster-dashboard
+alerting:
+  contactpoints.yaml:
+    apiVersion: 1
+    contactPoints:
+    - orgId: 1
+      name: togglemaster-incident
+      receivers:
+      - uid: fiap-pagerduty
+        type: pagerduty
+        settings:
+          integrationKey: $PAGERDUTY_INTEGRATION_KEY
+          severity: critical
+          component: auth-service
+          group: togglemaster
+          class: HTTP5xx
+        disableResolveMessage: false
+      - uid: fiap-discord
+        type: discord
+        settings:
+          url: $DISCORD_WEBHOOK_URL
+          use_discord_username: true
+        disableResolveMessage: false
+      - uid: fiap-responder
+        type: webhook
+        settings:
+          url: http://incident-responder.observability.svc.cluster.local:8080/webhook
+          httpMethod: POST
+          authorization_scheme: Bearer
+          authorization_credentials: $RESPONDER_TOKEN
+          maxAlerts: '10'
+        disableResolveMessage: false
+  policies.yaml:
+    apiVersion: 1
+    policies:
+    - orgId: 1
+      receiver: togglemaster-incident
+      group_by:
+      - alertname
+      - namespace
+      - service
+      group_wait: 0s
+      group_interval: 30s
+      repeat_interval: 4h
+  rules.yaml:
+    apiVersion: 1
+    groups:
+    - orgId: 1
+      name: togglemaster-incidents
+      folder: ToggleMaster
+      interval: 10s
+      rules:
+      - uid: auth-high-5xx
+        title: AuthHigh5xx
+        condition: C
+        data:
+        - refId: A
+          relativeTimeRange:
+            from: 60
+            to: 0
+          datasourceUid: prometheus
+          model:
+            refId: A
+            expr: (((sum(rate(app_http_requests_total{service_name="auth-service",http_route="/validate",http_response_status_code=~"5.."}[1m]))
+              or vector(0)) / clamp_min((sum(rate(app_http_requests_total{service_name="auth-service",http_route="/validate"}[1m]))
+              or vector(0)), 0.001)) > bool 0.05) * ((sum(increase(app_http_requests_total{service_name="auth-service",http_route="/validate"}[1m]))
+              or vector(0)) >= bool 20)
+            instant: true
+            range: false
+            intervalMs: 1000
+            maxDataPoints: 43200
+            datasource:
+              type: prometheus
+              uid: prometheus
+        - refId: B
+          relativeTimeRange:
+            from: 0
+            to: 0
+          datasourceUid: __expr__
+          model:
+            refId: B
+            type: reduce
+            expression: A
+            reducer: last
+            conditions: []
+            datasource:
+              type: __expr__
+              uid: __expr__
+        - refId: C
+          relativeTimeRange:
+            from: 0
+            to: 0
+          datasourceUid: __expr__
+          model:
+            refId: C
+            type: threshold
+            expression: B
+            conditions:
+            - type: query
+              evaluator:
+                type: gt
+                params:
+                - 0.5
+              operator:
+                type: and
+              query:
+                params:
+                - C
+              reducer:
+                type: last
+                params: []
+            datasource:
+              type: __expr__
+              uid: __expr__
+        for: 30s
+        noDataState: NoData
+        execErrState: Error
+        labels:
+          service: auth-service
+          namespace: togglemaster
+          severity: critical
+          environment: dev
+        annotations:
+          summary: 'Auth /validate: mais de 5% de erros 5xx'
+          description: Janela de 1 minuto, mínimo de 20 requisições, condição sustentada
+            por 30s. Verifique trace/logs e a execução do runbook. O runbook reinicia
+            somente auth-service uma vez por episódio.
+          runbook_url: https://github.com/Marcelo6arcia/tech-challenge-fase-4/blob/main/docs/RUNBOOK.md
+        isPaused: false
+        dashboardUid: togglemaster-fase4
+        panelId: 6
+rbac:
+  create: false
+automountServiceAccountToken: false
+testFramework:
+  enabled: false

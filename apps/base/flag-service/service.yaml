@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: flag-service
+  labels:
+    app.kubernetes.io/name: flag-service
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: flag-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: otel-agent
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '2'
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: observability
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+  sources:
+  - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+    chart: opentelemetry-collector
+    targetRevision: 0.178.2
+    helm:
+      releaseName: otel-agent
+      valueFiles:
+      - $values/observability/values/otel-agent.yaml
+  - repoURL: https://github.com/Marcelo6arcia/togglemaster-gitops-fase-4.git
+    targetRevision: main
+    ref: values
