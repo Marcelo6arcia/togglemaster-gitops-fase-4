@@ -66,6 +66,29 @@ dashboardProviders:
 dashboardsConfigMaps:
   togglemaster: togglemaster-dashboard
 alerting:
+  templates.yaml:
+    apiVersion: 1
+    templates:
+    - orgId: 1
+      name: fiap-incidents
+      # O chart executa tpl primeiro; os escapes preservam os templates do Grafana.
+      template: |
+        {{`{{ define "fiap.incident.title" -}}`}}
+        FIAP | {{`{{ .CommonLabels.alertname }}`}} | {{`{{ .CommonLabels.service }}`}} | {{`{{ .Status }}`}}
+        {{`{{- end }}`}}
+        {{`{{ define "fiap.incident.message" -}}`}}
+        {{`{{ range .Alerts -}}`}}
+        Estado: {{`{{ .Status }}`}}
+        Servico: {{`{{ .Labels.service }}`}} | Namespace: {{`{{ .Labels.namespace }}`}} | Ambiente: {{`{{ .Labels.environment }}`}}
+        Alerta: {{`{{ .Labels.alertname }}`}} | Severidade: {{`{{ .Labels.severity }}`}}
+        Condicao: {{`{{ .Annotations.summary }}`}}
+        Contexto: {{`{{ .Annotations.description }}`}}
+        Inicio UTC: {{`{{ .StartsAt.UTC.Format "2006-01-02T15:04:05Z" }}`}}
+        Fim UTC: {{`{{ if eq .Status "resolved" }}`}}{{`{{ .EndsAt.UTC.Format "2006-01-02T15:04:05Z" }}`}}{{`{{ else }}`}}em aberto{{`{{ end }}`}}
+        Correlacao: {{`{{ .Fingerprint }}`}}
+        Runbook: {{`{{ .Annotations.runbook_url }}`}}
+        {{`{{ end -}}`}}
+        {{`{{ end }}`}}
   contactpoints.yaml:
     apiVersion: 1
     contactPoints:
@@ -80,12 +103,17 @@ alerting:
           component: auth-service
           group: togglemaster
           class: HTTP5xx
+          summary: '{{`{{ template "fiap.incident.title" . }}`}}'
+          details:
+            contexto: '{{`{{ template "fiap.incident.message" . }}`}}'
         disableResolveMessage: false
       - uid: fiap-discord
         type: discord
         settings:
           url: $DISCORD_WEBHOOK_URL
           use_discord_username: true
+          title: '{{`{{ template "fiap.incident.title" . }}`}}'
+          message: '{{`{{ template "fiap.incident.message" . }}`}}'
         disableResolveMessage: false
       - uid: fiap-responder
         type: webhook

@@ -81,6 +81,26 @@ O alerta `AuthHigh5xx` considera `/validate` do auth, **mais de 5% de respostas 
 
 Um contato reúne PagerDuty, Discord e o webhook interno do responder. Todos recebem o mesmo alerta, com `namespace=togglemaster` e `service=auth-service`. O nome `AuthHigh5xx` é contrato com a automação. Notificações resolvidas também são enviadas; o responder precisa tratá-las sem reiniciar novamente.
 
+Os templates `fiap.incident.title` e `fiap.incident.message` acrescentam estado, serviço, namespace, ambiente, condição, contexto, início/fim UTC, fingerprint e runbook público ao Discord e aos detalhes do PagerDuty. O horário de resolução só aparece quando o alerta está resolvido. Os escapes no arquivo de valores são necessários porque o chart aplica Helm `tpl` antes de o Grafana interpretar seus templates; validar sempre a configuração renderizada.
+
+### Contratos das integrações e ensaio
+
+| Destino | Configuração necessária | Confirmação esperada |
+|---|---|---|
+| PagerDuty | Integration Key de uma integração **Events API v2** do serviço acadêmico, em `PAGERDUTY_INTEGRATION_KEY`; não usar uma chave REST API. | `trigger` abre o incidente e `resolve` encerra o mesmo incidente. O Grafana gera `dedup_key` pelo hash do grupo de alertas; manter `alertname`, `namespace` e `service` estáveis. |
+| Discord | Webhook do canal acadêmico em `DISCORD_WEBHOOK_URL`. | Mensagens de firing e resolved com serviço, condição e horários; URL secreta ausente dos documentos e capturas. |
+| Responder | `POST /webhook`, `Authorization: Bearer`, segredo `RESPONDER_TOKEN`; payload padrão Grafana com `alerts[].status`, `labels`, `startsAt` e `fingerprint`. | HTTP 202 confirma aceitação. Logs, PATCH, rollout e respostas saudáveis comprovam a ação e a recuperação. |
+
+Os três receivers recebem o mesmo grupo em paralelo. `group_wait: 0s` permite o primeiro envio assim que a regra entra em Firing; a automação só pode reagir após esse disparo. Isso não garante ordem de chegada PagerDuty → Discord → responder. A resolução pode aguardar `group_interval: 30s`. A repetição é de quatro horas; o responder deduplica cada episódio por fingerprint e início, persistindo em SQLite. Notificações resolved não reiniciam a aplicação e bloqueiam replay tardio do mesmo episódio.
+
+Antes da AWS, validar em ambiente local isolado: payload real do Grafana e autenticação com destinos fictícios; depois, com as contas e o canal acadêmicos disponíveis, testar abertura/resolução do mesmo incidente no PagerDuty e recebimento dos dois estados no Discord. A regra real deve ser exercitada com carga suficiente, verificando também os cenários sem telemetria, baixo volume e menos de 5% de erros. Teste de contact point sozinho comprova entrega, não o disparo da regra nem Self-Healing.
+
+Para repetir o ensaio de mitigação, normalizar o alerta e aguardar pelo menos dez minutos entre episódios: o responder tem cooldown de 600 segundos. Um episódio ocorrido dentro desse intervalo pode ser aceito sem executar outra mitigação. Erros de datasource podem gerar alertas separados e chegar aos contatos, mas o responder ignora nomes diferentes de `AuthHigh5xx`.
+
+O endereço externo do Grafana está configurado como `http://localhost:3000` para acesso por port-forward; links automáticos para ele só funcionam no computador com esse túnel. O texto personalizado inclui o runbook público. A atualização do ExternalSecret não altera o ambiente dos pods existentes: se os valores forem trocados após a implantação, promover pelo GitOps um rollout dos consumidores afetados e conferir os três destinos novamente.
+
+O teste `tests/validate-notifications.py` recebe o YAML Helm renderizado pela entrada padrão e confere contratos, templates, resolução e referências de Secrets. Ele integra a validação do chart na CI; não resolve variáveis nem envia notificações. A deduplicação e a conversão firing/resolved do PagerDuty seguem o [notifier da versão fixada](https://github.com/grafana/alerting/blob/ee90fc928c01/receivers/pagerduty/v1/pagerduty.go). O formato consumido pelo responder está documentado no [webhook do Grafana](https://grafana.com/docs/grafana/latest/alerting/configure-notifications/manage-contact-points/integrations/webhook-notifier/).
+
 Somente a anotação `/spec/template/metadata/annotations/fiap.dev~1incident-restart` do deployment `auth-service` tem exceção de reconciliação, com `RespectIgnoreDifferences=true`. O `selfHeal` continua ligado. O runbook tem RBAC limitado para consultar/alterar esse deployment; isso não concede autorização para executar comandos arbitrários.
 
 ## Validações locais reproduzíveis

@@ -60,6 +60,9 @@ jobs:
                   if result.returncode:
                       raise RuntimeError(result.stderr)
                   assert list(yaml.safe_load_all(result.stdout)), path
+                  if helm["releaseName"] == "grafana":
+                      subprocess.run(["python", "tests/validate-notifications.py"],
+                                     input=result.stdout, text=True, check=True)
                   count += 1
                   print(f"PASS: {helm['releaseName']} chart {source['targetRevision']}")
           assert count == 5, f"Esperados 5 charts; encontrados {count}"
