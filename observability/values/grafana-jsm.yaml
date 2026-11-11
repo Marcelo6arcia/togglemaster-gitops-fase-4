@@ -1,0 +1,46 @@
+# Valores do Grafana aplicados depois de grafana.yaml pela Application.
+# Helm substitui a lista contactPoints inteira, por isso os dois contatos comuns
+# sao repetidos sem alteracao em relacao a grafana.yaml.
+alerting:
+  contactpoints.yaml:
+    apiVersion: 1
+    contactPoints:
+    - orgId: 1
+      name: togglemaster-incident
+      receivers:
+      - uid: fiap-jsm
+        type: opsgenie
+        settings:
+          apiKey: $JSM_OPERATIONS_API_KEY
+          apiUrl: $JSM_OPERATIONS_API_URL
+          message: '{{`{{ template "fiap.incident.title" . }}`}}'
+          description: '{{`{{ template "fiap.incident.message" . }}`}}'
+          autoClose: true
+          sendTagsAs: both
+        disableResolveMessage: false
+      - uid: fiap-jira-automation
+        type: webhook
+        settings:
+          url: $JIRA_AUTOMATION_WEBHOOK_URL
+          httpMethod: POST
+          headers:
+            X-Automation-Webhook-Token: $JIRA_AUTOMATION_WEBHOOK_TOKEN
+          maxAlerts: '10'
+        disableResolveMessage: false
+      - uid: fiap-discord
+        type: discord
+        settings:
+          url: $DISCORD_WEBHOOK_URL
+          use_discord_username: true
+          title: '{{`{{ template "fiap.incident.title" . }}`}}'
+          message: '{{`{{ template "fiap.incident.message" . }}`}}'
+        disableResolveMessage: false
+      - uid: fiap-responder
+        type: webhook
+        settings:
+          url: http://incident-responder.observability.svc.cluster.local:8080/webhook
+          httpMethod: POST
+          authorization_scheme: Bearer
+          authorization_credentials: $RESPONDER_TOKEN
+          maxAlerts: '10'
+        disableResolveMessage: false

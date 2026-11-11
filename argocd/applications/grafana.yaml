@@ -33,6 +33,7 @@ spec:
       releaseName: grafana
       valueFiles:
       - $values/observability/values/grafana.yaml
+      - $values/observability/values/grafana-jsm.yaml
   - repoURL: https://github.com/Marcelo6arcia/togglemaster-gitops-fase-4.git
     targetRevision: main
     ref: values
