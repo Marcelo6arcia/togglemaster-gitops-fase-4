@@ -59,7 +59,15 @@ jobs:
                   result = subprocess.run(args, text=True, capture_output=True)
                   if result.returncode:
                       raise RuntimeError(result.stderr)
-                  assert list(yaml.safe_load_all(result.stdout)), path
+                  resources = [resource for resource in yaml.safe_load_all(result.stdout) if resource]
+                  assert resources, path
+                  for resource in resources:
+                      if resource["kind"] not in {"Deployment", "DaemonSet", "StatefulSet"}:
+                          continue
+                      for container in resource["spec"]["template"]["spec"]["containers"]:
+                          for port in container.get("ports", []):
+                              name = port.get("name", "")
+                              assert len(name) <= 15, f"{helm['releaseName']}: nome da porta excede 15 caracteres: {name}"
                   if helm["releaseName"] == "grafana":
                       subprocess.run(["python", "tests/validate-notifications.py"],
                                      input=result.stdout, text=True, check=True)

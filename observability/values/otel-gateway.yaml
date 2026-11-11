@@ -35,7 +35,7 @@ ports:
   otlp-http:
     enabled: true
     hostPort: null
-  prometheus-exporter:
+  prom-exporter:
     enabled: true
     containerPort: 8889
     servicePort: 8889
