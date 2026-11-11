@@ -22,7 +22,7 @@ labels:
 images:
 - name: evaluation-service
   newName: 456788081240.dkr.ecr.us-east-1.amazonaws.com/evaluation-service
-  newTag: SET_BY_CI
+  newTag: v1.0.0-2450d79
 
   # Anota o ServiceAccount com a role IRSA do ambiente dev.
   # O ARN sai de: terraform -chdir=terraform/envs/dev/infra output -json irsa_role_arns
