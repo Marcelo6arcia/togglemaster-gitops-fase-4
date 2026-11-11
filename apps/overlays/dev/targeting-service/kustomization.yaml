@@ -22,4 +22,4 @@ labels:
 images:
 - name: targeting-service
   newName: 456788081240.dkr.ecr.us-east-1.amazonaws.com/targeting-service
-  newTag: SET_BY_CI
+  newTag: v1.0.0-2450d79
